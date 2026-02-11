@@ -9,21 +9,9 @@ const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "faizan150$$$";
 
 function generateToken(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let token = "";
-  for (let i = 0; i < 64; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-}
-
-// Simple in-memory token store (resets on cold start, but fine for single admin)
-const validTokens = new Set<string>();
-
-function isAuthorized(req: Request): boolean {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return false;
-  return validTokens.has(auth.slice(7));
+  const arr = new Uint8Array(48);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 64);
 }
 
 Deno.serve(async (req) => {
@@ -47,7 +35,7 @@ Deno.serve(async (req) => {
       const { username, password } = await req.json();
       if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
         const token = generateToken();
-        validTokens.add(token);
+        await supabase.from("admin_sessions").insert({ token });
         return new Response(JSON.stringify({ token }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -58,8 +46,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Auth check helper
+    const authHeader = req.headers.get("authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    async function isAuthorized(): Promise<boolean> {
+      if (!bearerToken) return false;
+      const { data } = await supabase.from("admin_sessions").select("token").eq("token", bearerToken).maybeSingle();
+      return !!data;
+    }
+
     // All other routes require auth
-    if (!isAuthorized(req)) {
+    if (!(await isAuthorized())) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
