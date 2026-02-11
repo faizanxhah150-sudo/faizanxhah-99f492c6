@@ -140,6 +140,7 @@ function ContentManager({ queryClient }: { queryClient: any }) {
   const { data: content = {} } = useSiteContent();
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const contentItems = [
     { id: "hero_title", label: "Hero Title" },
@@ -149,6 +150,24 @@ function ContentManager({ queryClient }: { queryClient: any }) {
     { id: "contact_heading", label: "Contact Heading" },
     { id: "contact_subtext", label: "Contact Subtext" },
   ];
+
+  const handleProfileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const path = `profile/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("portfolio-images").upload(path, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("portfolio-images").getPublicUrl(path);
+      await adminApi.updateContent("profile_image_url", publicUrl);
+      queryClient.invalidateQueries({ queryKey: ["site-content"] });
+      toast.success("Profile photo updated!");
+    } catch {
+      toast.error("Upload failed");
+    }
+    setUploading(false);
+  };
 
   const handleSave = async (id: string) => {
     setSaving(id);
@@ -166,6 +185,28 @@ function ContentManager({ queryClient }: { queryClient: any }) {
   return (
     <div>
       <h2 className="font-heading text-xl font-bold text-foreground mb-6">Site Content</h2>
+
+      {/* Profile Photo Upload */}
+      <div className="glass-card p-5 mb-6">
+        <label className="text-sm font-medium text-primary mb-3 block">Profile Photo</label>
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
+            <img
+              src={content.profile_image_url || "/placeholder.svg"}
+              alt="Profile"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div>
+            <label className="neon-button px-4 py-2 rounded-lg text-xs flex items-center gap-1 cursor-pointer inline-flex">
+              <Upload size={14} /> {uploading ? "Uploading..." : "Change Photo"}
+              <input type="file" accept="image/*" onChange={handleProfileUpload} className="hidden" disabled={uploading} />
+            </label>
+            <p className="text-muted-foreground text-xs mt-2">Select from gallery to update permanently</p>
+          </div>
+        </div>
+      </div>
+
       <div className="space-y-4">
         {contentItems.map((item) => (
           <div key={item.id} className="glass-card p-5">

@@ -1,4 +1,4 @@
-import profileImg from "@/assets/profile-placeholder.jpg";
+import defaultProfileImg from "@/assets/profile-placeholder.jpg";
 import { ArrowDown, Github, Mail, Linkedin } from "lucide-react";
 
 interface HeroSectionProps {
@@ -16,7 +16,7 @@ const HeroSection = ({ content }: HeroSectionProps) => {
           {/* Profile image */}
           <div className="mx-auto mb-8 w-40 h-40 md:w-48 md:h-48 profile-glow animate-glow-pulse overflow-hidden">
             <img
-              src={profileImg}
+              src={content.profile_image_url || defaultProfileImg}
               alt="Faizan Shah"
               className="w-full h-full object-cover rounded-full"
             />
