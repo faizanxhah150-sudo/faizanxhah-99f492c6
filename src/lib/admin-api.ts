@@ -1,4 +1,4 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
 
 export async function adminLogin(username: string, password: string): Promise<string | null> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/admin/login`, {
@@ -23,22 +23,37 @@ export function adminLogout() {
 async function adminFetch(path: string, method: string, body?: any) {
   const token = getAdminToken();
   if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/admin/${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const url = `${SUPABASE_URL}/functions/v1/admin/${path}`;
+  console.log("[admin-api] Fetching:", method, url);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (networkErr: any) {
+    console.error("[admin-api] Network error:", networkErr);
+    throw new Error("Network error - check your connection");
+  }
   if (res.status === 401) {
     adminLogout();
     window.location.href = "/admin";
     throw new Error("Session expired");
   }
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Request failed");
+    let errMsg = "Request failed";
+    try {
+      const err = await res.json();
+      errMsg = err.error || errMsg;
+    } catch {
+      errMsg = `HTTP ${res.status}: ${res.statusText}`;
+    }
+    console.error("[admin-api] Error:", errMsg);
+    throw new Error(errMsg);
   }
   return res.json();
 }
