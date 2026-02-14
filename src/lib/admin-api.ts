@@ -1,77 +1,76 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
+import { externalSupabase } from './supabase-external';
 
-export async function adminLogin(username: string, password: string): Promise<string | null> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-  if (!res.ok) return null;
-  const { token } = await res.json();
-  localStorage.setItem("admin_token", token);
-  return token;
-}
-
-export function getAdminToken(): string | null {
-  return localStorage.getItem("admin_token");
+export async function adminLogin(email: string, password: string): Promise<boolean> {
+  const { error } = await externalSupabase.auth.signInWithPassword({ email, password });
+  return !error;
 }
 
 export function adminLogout() {
-  localStorage.removeItem("admin_token");
+  externalSupabase.auth.signOut();
 }
 
-async function adminFetch(path: string, method: string, body?: any) {
-  const token = getAdminToken();
-  if (!token) throw new Error("Not authenticated");
-  const url = `${SUPABASE_URL}/functions/v1/admin/${path}`;
-  console.log("[admin-api] Fetching:", method, url);
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch (networkErr: any) {
-    console.error("[admin-api] Network error:", networkErr);
-    throw new Error("Network error - check your connection");
-  }
-  if (res.status === 401) {
-    adminLogout();
-    window.location.href = "/admin";
-    throw new Error("Session expired");
-  }
-  if (!res.ok) {
-    let errMsg = "Request failed";
-    try {
-      const err = await res.json();
-      errMsg = err.error || errMsg;
-    } catch {
-      errMsg = `HTTP ${res.status}: ${res.statusText}`;
-    }
-    console.error("[admin-api] Error:", errMsg);
-    throw new Error(errMsg);
-  }
-  return res.json();
+export async function isAdminLoggedIn(): Promise<boolean> {
+  const { data: { session } } = await externalSupabase.auth.getSession();
+  return !!session;
 }
 
 export const adminApi = {
-  updateContent: (id: string, content: string) => adminFetch("content", "PUT", { id, content }),
-  
-  addProject: (project: any) => adminFetch("projects", "POST", project),
-  updateProject: (project: any) => adminFetch("projects", "PUT", project),
-  deleteProject: (id: string) => adminFetch("projects", "DELETE", { id }),
-  
-  addSkill: (skill: any) => adminFetch("skills", "POST", skill),
-  updateSkill: (skill: any) => adminFetch("skills", "PUT", skill),
-  deleteSkill: (id: string) => adminFetch("skills", "DELETE", { id }),
-  
-  getMessages: () => adminFetch("messages", "GET"),
-  markMessageRead: (id: string, is_read: boolean) => adminFetch("messages", "PUT", { id, is_read }),
-  deleteMessage: (id: string) => adminFetch("messages", "DELETE", { id }),
-  
-  updateTheme: (settings: any) => adminFetch("theme", "PUT", settings),
+  updateContent: async (id: string, content: string) => {
+    const { error } = await externalSupabase
+      .from('site_content')
+      .upsert({ id, content, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  },
+
+  addProject: async (project: any) => {
+    const { error } = await externalSupabase.from('projects').insert(project);
+    if (error) throw error;
+  },
+  updateProject: async (project: any) => {
+    const { id, ...rest } = project;
+    const { error } = await externalSupabase.from('projects').update(rest).eq('id', id);
+    if (error) throw error;
+  },
+  deleteProject: async (id: string) => {
+    const { error } = await externalSupabase.from('projects').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  addSkill: async (skill: any) => {
+    const { error } = await externalSupabase.from('skills').insert(skill);
+    if (error) throw error;
+  },
+  updateSkill: async (skill: any) => {
+    const { id, ...rest } = skill;
+    const { error } = await externalSupabase.from('skills').update(rest).eq('id', id);
+    if (error) throw error;
+  },
+  deleteSkill: async (id: string) => {
+    const { error } = await externalSupabase.from('skills').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  getMessages: async () => {
+    const { data, error } = await externalSupabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  markMessageRead: async (id: string, is_read: boolean) => {
+    const { error } = await externalSupabase.from('messages').update({ is_read }).eq('id', id);
+    if (error) throw error;
+  },
+  deleteMessage: async (id: string) => {
+    const { error } = await externalSupabase.from('messages').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  updateTheme: async (settings: any) => {
+    const { error } = await externalSupabase
+      .from('theme_settings')
+      .upsert({ id: 'default', ...settings, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  },
 };
