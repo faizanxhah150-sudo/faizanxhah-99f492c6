@@ -5,8 +5,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "faizan150$$$";
+// Rate limiting: IP -> { count, resetTime }
+const loginAttempts = new Map<string, { count: number; resetTime: number }>();
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record || now > record.resetTime) {
+    loginAttempts.set(ip, { count: 1, resetTime: now + WINDOW_MS });
+    return true;
+  }
+  record.count++;
+  return record.count <= MAX_ATTEMPTS;
+}
 
 function generateToken(): string {
   const arr = new Uint8Array(48);
@@ -21,9 +34,8 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const path = url.pathname.split("/").filter(Boolean);
-  // path[0] = "admin", path[1] = action
-
   const action = path[1] || "";
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -32,6 +44,26 @@ Deno.serve(async (req) => {
   try {
     // LOGIN
     if (action === "login" && req.method === "POST") {
+      const clientIP = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
+      
+      if (!checkRateLimit(clientIP)) {
+        return new Response(JSON.stringify({ error: "Too many login attempts. Try again later." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const ADMIN_USERNAME = Deno.env.get("ADMIN_USERNAME");
+      const ADMIN_PASSWORD = Deno.env.get("ADMIN_PASSWORD");
+
+      if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+        console.error("ADMIN_USERNAME or ADMIN_PASSWORD secret not set");
+        return new Response(JSON.stringify({ error: "Server configuration error" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { username, password } = await req.json();
       if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
         const token = generateToken();
@@ -55,7 +87,6 @@ Deno.serve(async (req) => {
       return !!data;
     }
 
-    // All other routes require auth
     if (!(await isAuthorized())) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
