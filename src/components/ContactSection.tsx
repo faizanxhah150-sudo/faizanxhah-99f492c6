@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/supabase-external";
 import { Send, Mail, MapPin, Phone } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ const ContactSection = ({ content }: ContactSectionProps) => {
       return;
     }
     setSending(true);
-    const { error } = await supabase.from("messages").insert({
+    const { error } = await externalSupabase.from("messages").insert({
       name: form.name.trim(),
       email: form.email.trim(),
       message: form.message.trim(),

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { adminLogin, getAdminToken, adminLogout, adminApi } from "@/lib/admin-api";
+import { adminLogin, adminLogout, adminApi } from "@/lib/admin-api";
+import { externalSupabase } from "@/lib/supabase-external";
 import { useSiteContent, useProjects, useSkills, useThemeSettings } from "@/hooks/use-portfolio-data";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   LogOut, FileText, FolderOpen, BarChart3, Mail, Settings,
@@ -10,20 +10,32 @@ import {
 } from "lucide-react";
 
 const Admin = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(!!getAdminToken());
-  const [username, setUsername] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [activeTab, setActiveTab] = useState("content");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    externalSupabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+      setCheckingAuth(false);
+    });
+    const { data: { subscription } } = externalSupabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoggingIn(true);
-    const token = await adminLogin(username, password);
+    const success = await adminLogin(email, password);
     setLoggingIn(false);
-    if (token) {
+    if (success) {
       setIsLoggedIn(true);
       toast.success("Welcome back, Admin!");
     } else {
@@ -36,8 +48,12 @@ const Admin = () => {
     setIsLoggedIn(false);
   };
 
+  if (checkingAuth) {
+    return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
+  }
+
   if (!isLoggedIn) {
-    return <LoginScreen onSubmit={handleLogin} username={username} setUsername={setUsername} password={password} setPassword={setPassword} loading={loggingIn} />;
+    return <LoginScreen onSubmit={handleLogin} email={email} setEmail={setEmail} password={password} setPassword={setPassword} loading={loggingIn} />;
   }
 
   const tabs = [
@@ -101,7 +117,7 @@ const Admin = () => {
 };
 
 // Login Screen
-function LoginScreen({ onSubmit, username, setUsername, password, setPassword, loading }: any) {
+function LoginScreen({ onSubmit, email, setEmail, password, setPassword, loading }: any) {
   return (
     <div className="min-h-screen bg-background grid-pattern flex items-center justify-center p-4">
       <div className="glass-card p-8 w-full max-w-md">
@@ -109,11 +125,11 @@ function LoginScreen({ onSubmit, username, setUsername, password, setPassword, l
         <p className="text-muted-foreground text-sm text-center mb-8">Enter your credentials</p>
         <form onSubmit={onSubmit} className="space-y-5">
           <div>
-            <label className="text-sm text-muted-foreground mb-1 block">Username</label>
+            <label className="text-sm text-muted-foreground mb-1 block">Email</label>
             <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
             />
           </div>
@@ -157,9 +173,9 @@ function ContentManager({ queryClient }: { queryClient: any }) {
     setUploading(true);
     try {
       const path = `profile/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from("portfolio-images").upload(path, file);
+      const { error } = await externalSupabase.storage.from("portfolio-images").upload(path, file);
       if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from("portfolio-images").getPublicUrl(path);
+      const { data: { publicUrl } } = externalSupabase.storage.from("portfolio-images").getPublicUrl(path);
       await adminApi.updateContent("profile_image_url", publicUrl);
       queryClient.invalidateQueries({ queryKey: ["site-content"] });
       toast.success("Profile photo updated!");
@@ -301,9 +317,9 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const path = `projects/${Date.now()}-${file.name}`;
-    const { error } = await supabase.storage.from("portfolio-images").upload(path, file);
+    const { error } = await externalSupabase.storage.from("portfolio-images").upload(path, file);
     if (error) { toast.error("Upload failed"); return; }
-    const { data: { publicUrl } } = supabase.storage.from("portfolio-images").getPublicUrl(path);
+    const { data: { publicUrl } } = externalSupabase.storage.from("portfolio-images").getPublicUrl(path);
     setForm({ ...form, image_url: publicUrl });
     toast.success("Image uploaded!");
   };
