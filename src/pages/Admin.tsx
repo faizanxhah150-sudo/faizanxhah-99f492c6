@@ -179,8 +179,9 @@ function ContentManager({ queryClient }: { queryClient: any }) {
       await adminApi.updateContent("profile_image_url", publicUrl);
       queryClient.invalidateQueries({ queryKey: ["site-content"] });
       toast.success("Profile photo updated!");
-    } catch {
-      toast.error("Upload failed");
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
     }
     setUploading(false);
   };
@@ -192,8 +193,9 @@ function ContentManager({ queryClient }: { queryClient: any }) {
       queryClient.invalidateQueries({ queryKey: ["site-content"] });
       toast.success("Content updated!");
       setEditing((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    } catch {
-      toast.error("Failed to save");
+    } catch (err: any) {
+      console.error("Save error:", err);
+      toast.error(`Failed to save: ${err?.message || "Unknown error"}`);
     }
     setSaving(null);
   };
@@ -298,8 +300,9 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       setEditingId(null);
       setShowAdd(false);
       setForm({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "" });
-    } catch {
-      toast.error("Failed to save project");
+    } catch (err: any) {
+      console.error("Project save error:", err);
+      toast.error(`Failed to save project: ${err?.message || "Unknown error"}`);
     }
   };
 
@@ -308,8 +311,8 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       await adminApi.deleteProject(id);
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Project deleted");
-    } catch {
-      toast.error("Failed to delete");
+    } catch (err: any) {
+      toast.error(`Failed to delete: ${err?.message || "Unknown error"}`);
     }
   };
 
@@ -402,8 +405,8 @@ function SkillManager({ queryClient }: { queryClient: any }) {
       setEditingId(null);
       setShowAdd(false);
       setForm({ name: "", category: "", proficiency: 50 });
-    } catch {
-      toast.error("Failed to save");
+    } catch (err: any) {
+      toast.error(`Failed to save: ${err?.message || "Unknown error"}`);
     }
   };
 
@@ -412,8 +415,8 @@ function SkillManager({ queryClient }: { queryClient: any }) {
       await adminApi.deleteSkill(id);
       queryClient.invalidateQueries({ queryKey: ["skills"] });
       toast.success("Skill deleted");
-    } catch {
-      toast.error("Failed to delete");
+    } catch (err: any) {
+      toast.error(`Failed to delete: ${err?.message || "Unknown error"}`);
     }
   };
 
