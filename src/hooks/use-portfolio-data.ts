@@ -8,7 +8,7 @@ export function useSiteContent() {
       const { data, error } = await externalSupabase.from("site_content").select("*");
       if (error) throw error;
       const map: Record<string, string> = {};
-      data?.forEach((item: any) => { map[item.id] = item.content; });
+      data?.forEach((item: any) => { map[item.section_key] = item.content; });
       return map;
     },
   });
