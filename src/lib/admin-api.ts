@@ -23,12 +23,11 @@ export const adminApi = {
   },
 
   addProject: async (project: any) => {
-    const { error } = await externalSupabase.from('projects').insert(project);
+    const { error } = await externalSupabase.from('projects').upsert(project);
     if (error) throw error;
   },
   updateProject: async (project: any) => {
-    const { id, ...rest } = project;
-    const { error } = await externalSupabase.from('projects').update(rest).eq('id', id);
+    const { error } = await externalSupabase.from('projects').upsert(project);
     if (error) throw error;
   },
   deleteProject: async (id: string) => {
