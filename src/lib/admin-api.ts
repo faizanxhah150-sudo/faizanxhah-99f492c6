@@ -15,22 +15,23 @@ export async function isAdminLoggedIn(): Promise<boolean> {
 }
 
 export const adminApi = {
-  updateContent: async (id: string, content: string) => {
+  updateContent: async (sectionKey: string, content: string) => {
     const { error } = await externalSupabase
       .from('site_content')
       .upsert(
-        { id, content, updated_at: new Date().toISOString() },
-        { onConflict: 'id' }
+        { section_key: sectionKey, content, updated_at: new Date().toISOString() },
+        { onConflict: 'section_key' }
       );
     if (error) throw error;
   },
 
   addProject: async (project: any) => {
-    const { error } = await externalSupabase.from('projects').upsert(project);
+    const { error } = await externalSupabase.from('projects').insert(project);
     if (error) throw error;
   },
   updateProject: async (project: any) => {
-    const { error } = await externalSupabase.from('projects').upsert(project);
+    const { id, ...rest } = project;
+    const { error } = await externalSupabase.from('projects').update(rest).eq('id', id);
     if (error) throw error;
   },
   deleteProject: async (id: string) => {
@@ -72,7 +73,10 @@ export const adminApi = {
   updateTheme: async (settings: any) => {
     const { error } = await externalSupabase
       .from('theme_settings')
-      .upsert({ id: 'default', ...settings, updated_at: new Date().toISOString() });
+      .upsert(
+        { setting_key: 'default', ...settings, updated_at: new Date().toISOString() },
+        { onConflict: 'setting_key' }
+      );
     if (error) throw error;
   },
 };
