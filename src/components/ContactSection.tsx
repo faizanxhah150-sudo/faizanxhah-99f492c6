@@ -18,11 +18,11 @@ const ContactSection = ({ content }: ContactSectionProps) => {
       return;
     }
     setSending(true);
-    const { error } = await externalSupabase.from("messages").insert([{
+    const { error } = await externalSupabase.from("messages").insert({
       name: form.name.trim(),
       email: form.email.trim(),
       message: form.message.trim(),
-    }]);
+    });
     setSending(false);
     if (error) {
       toast.error("Failed to send message");

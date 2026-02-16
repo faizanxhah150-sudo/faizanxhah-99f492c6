@@ -555,13 +555,13 @@ function ThemeManager({ queryClient }: { queryClient: any }) {
   useEffect(() => {
     if (theme) {
       setColor((theme as any).accent_color || "#39FF14");
-      setIntensity((theme as any).accent_intensity || 1.0);
+      setIntensity((theme as any).glow_intensity || 1.0);
     }
   }, [theme]);
 
   const handleSave = async () => {
     try {
-      await adminApi.updateTheme({ accent_color: color, accent_intensity: intensity });
+      await adminApi.updateTheme({ accent_color: color, glow_intensity: intensity });
       queryClient.invalidateQueries({ queryKey: ["theme-settings"] });
       toast.success("Theme updated!");
     } catch {
