@@ -23,7 +23,7 @@ export function useProjects() {
         .select("*")
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 }
@@ -37,7 +37,7 @@ export function useSkills() {
         .select("*")
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 }
@@ -48,11 +48,11 @@ export function useThemeSettings() {
     queryFn: async () => {
       const { data, error } = await externalSupabase
         .from("theme_settings")
-        .select("*")
-        .eq("setting_key", "default")
-        .maybeSingle();
+        .select("*");
       if (error) throw error;
-      return data;
+      const map: Record<string, string> = {};
+      data?.forEach((row: any) => { map[row.setting_key] = row.value; });
+      return map;
     },
   });
 }
