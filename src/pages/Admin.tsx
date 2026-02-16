@@ -522,7 +522,7 @@ function MessageInbox() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="text-foreground font-medium text-sm">{m.name}</p>
+                    <p className="text-foreground font-medium text-sm">{m.full_name}</p>
                     {!m.is_read && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <p className="text-primary text-xs mb-2">{m.email}</p>
@@ -548,24 +548,26 @@ function MessageInbox() {
 
 // Theme Manager
 function ThemeManager({ queryClient }: { queryClient: any }) {
-  const { data: theme } = useThemeSettings();
+  const { data: theme = {} } = useThemeSettings();
   const [color, setColor] = useState("#39FF14");
   const [intensity, setIntensity] = useState(1.0);
 
   useEffect(() => {
-    if (theme) {
+    if (theme && Object.keys(theme).length > 0) {
       setColor((theme as any).accent_color || "#39FF14");
-      setIntensity((theme as any).glow_intensity || 1.0);
+      setIntensity(parseFloat((theme as any).glow_intensity) || 1.0);
     }
   }, [theme]);
 
   const handleSave = async () => {
     try {
-      await adminApi.updateTheme({ accent_color: color, glow_intensity: intensity });
+      await adminApi.updateThemeSetting("accent_color", color);
+      await adminApi.updateThemeSetting("glow_intensity", String(intensity));
       queryClient.invalidateQueries({ queryKey: ["theme-settings"] });
       toast.success("Theme updated!");
-    } catch {
-      toast.error("Failed to save theme");
+    } catch (err: any) {
+      console.error("Theme save error:", err);
+      toast.error(`Failed to save theme: ${err?.message || "Unknown error"}`);
     }
   };
 

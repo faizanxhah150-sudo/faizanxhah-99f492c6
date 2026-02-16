@@ -70,11 +70,20 @@ export const adminApi = {
     if (error) throw error;
   },
 
-  updateTheme: async (settings: any) => {
+  getTheme: async () => {
+    const { data, error } = await externalSupabase
+      .from('theme_settings')
+      .select('*');
+    if (error) throw error;
+    const map: Record<string, string> = {};
+    data?.forEach((row: any) => { map[row.setting_key] = row.value; });
+    return map;
+  },
+  updateThemeSetting: async (settingKey: string, value: string) => {
     const { error } = await externalSupabase
       .from('theme_settings')
       .upsert(
-        { setting_key: 'default', ...settings, updated_at: new Date().toISOString() },
+        { setting_key: settingKey, value, updated_at: new Date().toISOString() },
         { onConflict: 'setting_key' }
       );
     if (error) throw error;
