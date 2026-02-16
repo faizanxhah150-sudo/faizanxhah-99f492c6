@@ -163,6 +163,7 @@ function ContentManager({ queryClient }: { queryClient: any }) {
     { id: "hero_subtitle", label: "Hero Subtitle" },
     { id: "hero_description", label: "Hero Description" },
     { id: "about_text", label: "About Text" },
+    { id: "location", label: "Location" },
     { id: "contact_heading", label: "Contact Heading" },
     { id: "contact_subtext", label: "Contact Subtext" },
   ];
@@ -265,7 +266,7 @@ function ContentManager({ queryClient }: { queryClient: any }) {
 function ProjectManager({ queryClient }: { queryClient: any }) {
   const { data: projects = [] } = useProjects();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "" });
+  const [form, setForm] = useState({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "", category: "" });
   const [showAdd, setShowAdd] = useState(false);
 
   const startEdit = (p: any) => {
@@ -277,6 +278,7 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       live_url: p.live_url || "",
       github_url: p.github_url || "",
       image_url: p.image_url || "",
+      category: p.category || "",
     });
   };
 
@@ -288,6 +290,7 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       live_url: form.live_url || null,
       github_url: form.github_url || null,
       image_url: form.image_url || null,
+      category: form.category || null,
     };
     try {
       if (editingId) {
@@ -299,7 +302,7 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       toast.success(editingId ? "Project updated!" : "Project added!");
       setEditingId(null);
       setShowAdd(false);
-      setForm({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "" });
+      setForm({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "", category: "" });
     } catch (err: any) {
       console.error("Project save error:", err);
       toast.error(`Failed to save project: ${err?.message || "Unknown error"}`);
@@ -345,6 +348,7 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
           <h3 className="font-heading text-sm font-semibold text-primary">{editingId ? "Edit Project" : "New Project"}</h3>
           <input type="text" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary resize-none" />
+          <input type="text" placeholder="Category (e.g. Web App)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <input type="text" placeholder="Tech stack (comma separated)" value={form.tech_stack} onChange={(e) => setForm({ ...form, tech_stack: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <input type="text" placeholder="Live URL" value={form.live_url} onChange={(e) => setForm({ ...form, live_url: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <input type="text" placeholder="GitHub URL" value={form.github_url} onChange={(e) => setForm({ ...form, github_url: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />

@@ -9,4 +9,13 @@ export const externalSupabase = createClient(EXTERNAL_SUPABASE_URL, EXTERNAL_SUP
     persistSession: true,
     autoRefreshToken: true,
   },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+    },
+  },
 });
