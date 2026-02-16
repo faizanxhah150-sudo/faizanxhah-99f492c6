@@ -15,12 +15,12 @@ export async function isAdminLoggedIn(): Promise<boolean> {
 }
 
 export const adminApi = {
-  updateContent: async (sectionKey: string, content: string) => {
+  updateContent: async (id: string, content: string) => {
     const { error } = await externalSupabase
       .from('site_content')
       .upsert(
-        { section_key: sectionKey, content, updated_at: new Date().toISOString() },
-        { onConflict: 'section_key' }
+        { id, content, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
       );
     if (error) throw error;
   },

@@ -18,11 +18,11 @@ const ContactSection = ({ content }: ContactSectionProps) => {
       return;
     }
     setSending(true);
-    const { error } = await externalSupabase.from("messages").insert({
+    const { error } = await externalSupabase.from("messages").insert([{
       name: form.name.trim(),
       email: form.email.trim(),
       message: form.message.trim(),
-    } as any);
+    }]);
     setSending(false);
     if (error) {
       toast.error("Failed to send message");
@@ -64,7 +64,7 @@ const ContactSection = ({ content }: ContactSectionProps) => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Location</p>
-                  <p className="text-foreground font-medium">Available Worldwide</p>
+                  <p className="text-foreground font-medium">{content.location || "Pakistan"}</p>
                 </div>
               </div>
             </div>
