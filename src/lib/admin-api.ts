@@ -1,91 +1,62 @@
-import { externalSupabase } from './supabase-external';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-export async function adminLogin(email: string, password: string): Promise<boolean> {
-  const { error } = await externalSupabase.auth.signInWithPassword({ email, password });
-  return !error;
+export async function adminLogin(username: string, password: string): Promise<string | null> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) return null;
+  const { token } = await res.json();
+  localStorage.setItem("admin_token", token);
+  return token;
+}
+
+export function getAdminToken(): string | null {
+  return localStorage.getItem("admin_token");
 }
 
 export function adminLogout() {
-  externalSupabase.auth.signOut();
+  localStorage.removeItem("admin_token");
 }
 
-export async function isAdminLoggedIn(): Promise<boolean> {
-  const { data: { session } } = await externalSupabase.auth.getSession();
-  return !!session;
+async function adminFetch(path: string, method: string, body?: any) {
+  const token = getAdminToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/admin/${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) {
+    adminLogout();
+    window.location.href = "/admin";
+    throw new Error("Session expired");
+  }
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Request failed");
+  }
+  return res.json();
 }
 
 export const adminApi = {
-  updateContent: async (sectionKey: string, content: string) => {
-    const { error } = await externalSupabase
-      .from('site_content')
-      .upsert(
-        { section_key: sectionKey, content, updated_at: new Date().toISOString() },
-        { onConflict: 'section_key' }
-      );
-    if (error) throw error;
-  },
-
-  addProject: async (project: any) => {
-    const { error } = await externalSupabase.from('projects').insert(project);
-    if (error) throw error;
-  },
-  updateProject: async (project: any) => {
-    const { id, ...rest } = project;
-    const { error } = await externalSupabase.from('projects').update(rest).eq('id', id);
-    if (error) throw error;
-  },
-  deleteProject: async (id: string) => {
-    const { error } = await externalSupabase.from('projects').delete().eq('id', id);
-    if (error) throw error;
-  },
-
-  addSkill: async (skill: any) => {
-    const { error } = await externalSupabase.from('skills').insert(skill);
-    if (error) throw error;
-  },
-  updateSkill: async (skill: any) => {
-    const { id, ...rest } = skill;
-    const { error } = await externalSupabase.from('skills').update(rest).eq('id', id);
-    if (error) throw error;
-  },
-  deleteSkill: async (id: string) => {
-    const { error } = await externalSupabase.from('skills').delete().eq('id', id);
-    if (error) throw error;
-  },
-
-  getMessages: async () => {
-    const { data, error } = await externalSupabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
-  },
-  markMessageRead: async (id: string, is_read: boolean) => {
-    const { error } = await externalSupabase.from('messages').update({ is_read }).eq('id', id);
-    if (error) throw error;
-  },
-  deleteMessage: async (id: string) => {
-    const { error } = await externalSupabase.from('messages').delete().eq('id', id);
-    if (error) throw error;
-  },
-
-  getTheme: async () => {
-    const { data, error } = await externalSupabase
-      .from('theme_settings')
-      .select('*');
-    if (error) throw error;
-    const map: Record<string, string> = {};
-    data?.forEach((row: any) => { map[row.setting_key] = row.value; });
-    return map;
-  },
-  updateThemeSetting: async (settingKey: string, value: string) => {
-    const { error } = await externalSupabase
-      .from('theme_settings')
-      .upsert(
-        { setting_key: settingKey, value, updated_at: new Date().toISOString() },
-        { onConflict: 'setting_key' }
-      );
-    if (error) throw error;
-  },
+  updateContent: (id: string, content: string) => adminFetch("content", "PUT", { id, content }),
+  
+  addProject: (project: any) => adminFetch("projects", "POST", project),
+  updateProject: (project: any) => adminFetch("projects", "PUT", project),
+  deleteProject: (id: string) => adminFetch("projects", "DELETE", { id }),
+  
+  addSkill: (skill: any) => adminFetch("skills", "POST", skill),
+  updateSkill: (skill: any) => adminFetch("skills", "PUT", skill),
+  deleteSkill: (id: string) => adminFetch("skills", "DELETE", { id }),
+  
+  getMessages: () => adminFetch("messages", "GET"),
+  markMessageRead: (id: string, is_read: boolean) => adminFetch("messages", "PUT", { id, is_read }),
+  deleteMessage: (id: string) => adminFetch("messages", "DELETE", { id }),
+  
+  updateTheme: (settings: any) => adminFetch("theme", "PUT", settings),
 };

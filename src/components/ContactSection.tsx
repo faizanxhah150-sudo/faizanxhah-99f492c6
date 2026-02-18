@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { externalSupabase } from "@/lib/supabase-external";
-import { Send, Mail, MapPin } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Send, Mail, MapPin, Phone } from "lucide-react";
 import { toast } from "sonner";
 
 interface ContactSectionProps {
@@ -8,30 +8,28 @@ interface ContactSectionProps {
 }
 
 const ContactSection = ({ content }: ContactSectionProps) => {
-  const [form, setForm] = useState({ full_name: "", email: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [sending, setSending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.full_name.trim() || !form.email.trim() || !form.message.trim()) {
+    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
       toast.error("Please fill all fields");
       return;
     }
     setSending(true);
-    try {
-      const { error } = await externalSupabase.from("messages").insert({
-        full_name: form.full_name.trim(),
-        email: form.email.trim(),
-        message: form.message.trim(),
-      });
-      if (error) throw error;
-      toast.success("Message sent successfully!");
-      setForm({ full_name: "", email: "", message: "" });
-    } catch (err: any) {
-      console.error("Message send error:", err);
-      toast.error("Failed to send message");
-    }
+    const { error } = await supabase.from("messages").insert({
+      name: form.name.trim(),
+      email: form.email.trim(),
+      message: form.message.trim(),
+    } as any);
     setSending(false);
+    if (error) {
+      toast.error("Failed to send message");
+    } else {
+      toast.success("Message sent successfully!");
+      setForm({ name: "", email: "", message: "" });
+    }
   };
 
   return (
@@ -46,6 +44,7 @@ const ContactSection = ({ content }: ContactSectionProps) => {
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-5xl mx-auto">
+          {/* Info */}
           <div className="space-y-8">
             <div className="glass-card p-6">
               <div className="flex items-center gap-4 mb-3">
@@ -65,19 +64,20 @@ const ContactSection = ({ content }: ContactSectionProps) => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Location</p>
-                  <p className="text-foreground font-medium">{content.location || "Pakistan"}</p>
+                  <p className="text-foreground font-medium">Available Worldwide</p>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Form */}
           <form onSubmit={handleSubmit} className="glass-card p-6 space-y-5">
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Name</label>
               <input
                 type="text"
-                value={form.full_name}
-                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
                 placeholder="Your name"
                 maxLength={100}

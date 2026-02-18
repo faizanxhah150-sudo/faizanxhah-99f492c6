@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { adminLogin, adminLogout, adminApi } from "@/lib/admin-api";
-import { externalSupabase } from "@/lib/supabase-external";
+import { adminLogin, getAdminToken, adminLogout, adminApi } from "@/lib/admin-api";
 import { useSiteContent, useProjects, useSkills, useThemeSettings } from "@/hooks/use-portfolio-data";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   LogOut, FileText, FolderOpen, BarChart3, Mail, Settings,
@@ -10,32 +10,20 @@ import {
 } from "lucide-react";
 
 const Admin = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [email, setEmail] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(!!getAdminToken());
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [activeTab, setActiveTab] = useState("content");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    externalSupabase.auth.getSession().then(({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-      setCheckingAuth(false);
-    });
-    const { data: { subscription } } = externalSupabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoggingIn(true);
-    const success = await adminLogin(email, password);
+    const token = await adminLogin(username, password);
     setLoggingIn(false);
-    if (success) {
+    if (token) {
       setIsLoggedIn(true);
       toast.success("Welcome back, Admin!");
     } else {
@@ -48,12 +36,8 @@ const Admin = () => {
     setIsLoggedIn(false);
   };
 
-  if (checkingAuth) {
-    return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
-  }
-
   if (!isLoggedIn) {
-    return <LoginScreen onSubmit={handleLogin} email={email} setEmail={setEmail} password={password} setPassword={setPassword} loading={loggingIn} />;
+    return <LoginScreen onSubmit={handleLogin} username={username} setUsername={setUsername} password={password} setPassword={setPassword} loading={loggingIn} />;
   }
 
   const tabs = [
@@ -117,7 +101,7 @@ const Admin = () => {
 };
 
 // Login Screen
-function LoginScreen({ onSubmit, email, setEmail, password, setPassword, loading }: any) {
+function LoginScreen({ onSubmit, username, setUsername, password, setPassword, loading }: any) {
   return (
     <div className="min-h-screen bg-background grid-pattern flex items-center justify-center p-4">
       <div className="glass-card p-8 w-full max-w-md">
@@ -125,11 +109,11 @@ function LoginScreen({ onSubmit, email, setEmail, password, setPassword, loading
         <p className="text-muted-foreground text-sm text-center mb-8">Enter your credentials</p>
         <form onSubmit={onSubmit} className="space-y-5">
           <div>
-            <label className="text-sm text-muted-foreground mb-1 block">Email</label>
+            <label className="text-sm text-muted-foreground mb-1 block">Username</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
             />
           </div>
@@ -163,7 +147,6 @@ function ContentManager({ queryClient }: { queryClient: any }) {
     { id: "hero_subtitle", label: "Hero Subtitle" },
     { id: "hero_description", label: "Hero Description" },
     { id: "about_text", label: "About Text" },
-    { id: "location", label: "Location" },
     { id: "contact_heading", label: "Contact Heading" },
     { id: "contact_subtext", label: "Contact Subtext" },
   ];
@@ -174,15 +157,14 @@ function ContentManager({ queryClient }: { queryClient: any }) {
     setUploading(true);
     try {
       const path = `profile/${Date.now()}-${file.name}`;
-      const { error } = await externalSupabase.storage.from("portfolio-images").upload(path, file);
+      const { error } = await supabase.storage.from("portfolio-images").upload(path, file);
       if (error) throw error;
-      const { data: { publicUrl } } = externalSupabase.storage.from("portfolio-images").getPublicUrl(path);
+      const { data: { publicUrl } } = supabase.storage.from("portfolio-images").getPublicUrl(path);
       await adminApi.updateContent("profile_image_url", publicUrl);
       queryClient.invalidateQueries({ queryKey: ["site-content"] });
       toast.success("Profile photo updated!");
-    } catch (err: any) {
-      console.error("Upload error:", err);
-      toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
+    } catch {
+      toast.error("Upload failed");
     }
     setUploading(false);
   };
@@ -194,9 +176,8 @@ function ContentManager({ queryClient }: { queryClient: any }) {
       queryClient.invalidateQueries({ queryKey: ["site-content"] });
       toast.success("Content updated!");
       setEditing((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    } catch (err: any) {
-      console.error("Save error:", err);
-      toast.error(`Failed to save: ${err?.message || "Unknown error"}`);
+    } catch {
+      toast.error("Failed to save");
     }
     setSaving(null);
   };
@@ -266,7 +247,7 @@ function ContentManager({ queryClient }: { queryClient: any }) {
 function ProjectManager({ queryClient }: { queryClient: any }) {
   const { data: projects = [] } = useProjects();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "", category: "" });
+  const [form, setForm] = useState({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "" });
   const [showAdd, setShowAdd] = useState(false);
 
   const startEdit = (p: any) => {
@@ -278,7 +259,6 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       live_url: p.live_url || "",
       github_url: p.github_url || "",
       image_url: p.image_url || "",
-      category: p.category || "",
     });
   };
 
@@ -290,7 +270,6 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       live_url: form.live_url || null,
       github_url: form.github_url || null,
       image_url: form.image_url || null,
-      category: form.category || null,
     };
     try {
       if (editingId) {
@@ -302,10 +281,9 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       toast.success(editingId ? "Project updated!" : "Project added!");
       setEditingId(null);
       setShowAdd(false);
-      setForm({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "", category: "" });
-    } catch (err: any) {
-      console.error("Project save error:", err);
-      toast.error(`Failed to save project: ${err?.message || "Unknown error"}`);
+      setForm({ title: "", description: "", tech_stack: "", live_url: "", github_url: "", image_url: "" });
+    } catch {
+      toast.error("Failed to save project");
     }
   };
 
@@ -314,8 +292,8 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
       await adminApi.deleteProject(id);
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Project deleted");
-    } catch (err: any) {
-      toast.error(`Failed to delete: ${err?.message || "Unknown error"}`);
+    } catch {
+      toast.error("Failed to delete");
     }
   };
 
@@ -323,9 +301,9 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const path = `projects/${Date.now()}-${file.name}`;
-    const { error } = await externalSupabase.storage.from("portfolio-images").upload(path, file);
+    const { error } = await supabase.storage.from("portfolio-images").upload(path, file);
     if (error) { toast.error("Upload failed"); return; }
-    const { data: { publicUrl } } = externalSupabase.storage.from("portfolio-images").getPublicUrl(path);
+    const { data: { publicUrl } } = supabase.storage.from("portfolio-images").getPublicUrl(path);
     setForm({ ...form, image_url: publicUrl });
     toast.success("Image uploaded!");
   };
@@ -348,7 +326,6 @@ function ProjectManager({ queryClient }: { queryClient: any }) {
           <h3 className="font-heading text-sm font-semibold text-primary">{editingId ? "Edit Project" : "New Project"}</h3>
           <input type="text" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary resize-none" />
-          <input type="text" placeholder="Category (e.g. Web App)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <input type="text" placeholder="Tech stack (comma separated)" value={form.tech_stack} onChange={(e) => setForm({ ...form, tech_stack: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <input type="text" placeholder="Live URL" value={form.live_url} onChange={(e) => setForm({ ...form, live_url: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
           <input type="text" placeholder="GitHub URL" value={form.github_url} onChange={(e) => setForm({ ...form, github_url: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary" />
@@ -409,8 +386,8 @@ function SkillManager({ queryClient }: { queryClient: any }) {
       setEditingId(null);
       setShowAdd(false);
       setForm({ name: "", category: "", proficiency: 50 });
-    } catch (err: any) {
-      toast.error(`Failed to save: ${err?.message || "Unknown error"}`);
+    } catch {
+      toast.error("Failed to save");
     }
   };
 
@@ -419,8 +396,8 @@ function SkillManager({ queryClient }: { queryClient: any }) {
       await adminApi.deleteSkill(id);
       queryClient.invalidateQueries({ queryKey: ["skills"] });
       toast.success("Skill deleted");
-    } catch (err: any) {
-      toast.error(`Failed to delete: ${err?.message || "Unknown error"}`);
+    } catch {
+      toast.error("Failed to delete");
     }
   };
 
@@ -522,7 +499,7 @@ function MessageInbox() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="text-foreground font-medium text-sm">{m.full_name}</p>
+                    <p className="text-foreground font-medium text-sm">{m.name}</p>
                     {!m.is_read && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <p className="text-primary text-xs mb-2">{m.email}</p>
@@ -548,26 +525,24 @@ function MessageInbox() {
 
 // Theme Manager
 function ThemeManager({ queryClient }: { queryClient: any }) {
-  const { data: theme = {} } = useThemeSettings();
+  const { data: theme } = useThemeSettings();
   const [color, setColor] = useState("#39FF14");
   const [intensity, setIntensity] = useState(1.0);
 
   useEffect(() => {
-    if (theme && Object.keys(theme).length > 0) {
+    if (theme) {
       setColor((theme as any).accent_color || "#39FF14");
-      setIntensity(parseFloat((theme as any).glow_intensity) || 1.0);
+      setIntensity((theme as any).accent_intensity || 1.0);
     }
   }, [theme]);
 
   const handleSave = async () => {
     try {
-      await adminApi.updateThemeSetting("accent_color", color);
-      await adminApi.updateThemeSetting("glow_intensity", String(intensity));
+      await adminApi.updateTheme({ accent_color: color, accent_intensity: intensity });
       queryClient.invalidateQueries({ queryKey: ["theme-settings"] });
       toast.success("Theme updated!");
-    } catch (err: any) {
-      console.error("Theme save error:", err);
-      toast.error(`Failed to save theme: ${err?.message || "Unknown error"}`);
+    } catch {
+      toast.error("Failed to save theme");
     }
   };
 
